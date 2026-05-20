@@ -1,0 +1,23 @@
+{
+  "name": "awesome-toolset-linkdrop",
+  "version": "0.1.0",
+  "description": "Awesome Toolset LinkDrop - live peer-to-peer browser file and text sharing.",
+  "private": true,
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "vite build",
+    "preview": "vite preview --host 0.0.0.0"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "type": "module",
+  "dependencies": {
+    "@vitejs/plugin-react": "^6.0.2",
+    "lucide-react": "^1.16.0",
+    "peerjs": "^1.5.5",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6",
+    "vite": "^8.0.13"
+  }
+}
