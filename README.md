@@ -71,9 +71,10 @@ For a project page, set Vite `base` to your repository path if needed, run `npm 
 2. Click **Create Room**.
 3. Share the room code or invite link with Device B.
 4. Open the app on Device B.
-5. Enter the room code or open the invite link.
-6. Once the status is **Connected**, either device can send text or choose a file.
-7. Received files appear as download links. Click **Download** to save them.
+5. If Device B opens the invite link, it will show a room-found card with the code filled in.
+6. Tap **Join Room**. If no invite link was used, enter the code manually and then tap **Join Room**.
+7. Once the status is **Connected**, either device can send text or choose a file.
+8. Received files appear as download links. Click **Download** to save them.
 
 Both devices must remain online and connected at the same time. Anyone with the active room code or invite link can connect while the room is active.
 

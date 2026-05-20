@@ -250,6 +250,33 @@ h1 {
   background: #f7f7fa;
 }
 
+.join-found-card {
+  display: grid;
+  gap: 7px;
+  padding: 14px;
+  border: 1px solid rgba(0, 113, 227, 0.18);
+  border-radius: 20px;
+  background: #eef6ff;
+}
+
+.join-found-card span {
+  color: #0059b8;
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+.join-found-card strong {
+  color: #111827;
+  font-size: 1.8rem;
+  letter-spacing: 0.08em;
+}
+
+.join-found-card p {
+  margin: 0;
+  color: #52525b;
+  line-height: 1.45;
+}
+
 .room-card.muted {
   color: #71717a;
   line-height: 1.5;

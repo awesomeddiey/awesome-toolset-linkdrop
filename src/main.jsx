@@ -104,6 +104,7 @@ function App() {
   const connected = status === 'connected' || status === 'complete';
   const canSend = connected && !sendingRef.current && !sendProgress;
   const inviteLink = roomCode ? `${window.location.origin}${window.location.pathname}?room=${roomCode}` : '';
+  const hasInviteCode = Boolean(initialRoom && mode === 'join');
 
   useEffect(() => {
     receivedFilesRef.current = receivedFiles;
@@ -453,6 +454,13 @@ function App() {
             </div>
           ) : (
             <div className="stack">
+              {hasInviteCode && (
+                <div className="join-found-card">
+                  <span>Room found from invite link</span>
+                  <strong>{joinCode}</strong>
+                  <p>Tap Join Room to connect to the device that created this room.</p>
+                </div>
+              )}
               <label className="field-label" htmlFor="room-code">
                 Room code
               </label>
