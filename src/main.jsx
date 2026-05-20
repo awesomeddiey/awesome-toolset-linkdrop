@@ -60,12 +60,18 @@ function normalizeRoomCode(value) {
   return value.trim().replace(/^linkdrop-/i, '').replace(/[^a-z0-9]/gi, '').toUpperCase();
 }
 
+function normalizeRoomName(value) {
+  return value.trim().replace(/\s+/g, '').replace(/[^a-z0-9]/gi, '').toUpperCase().slice(0, 24);
+}
+
 function normalizeName(value) {
   return value.trim().replace(/\s+/g, ' ').slice(0, 40);
 }
 
-function peerIdForRoom(roomCode) {
-  return `${ROOM_PREFIX}${normalizeRoomCode(roomCode).toLowerCase()}`;
+function peerIdForRoom(roomName, roomCode) {
+  const normalizedName = normalizeRoomName(roomName).toLowerCase();
+  const normalizedCode = normalizeRoomCode(roomCode).toLowerCase();
+  return `${ROOM_PREFIX}${String(normalizedName.length).padStart(2, '0')}${normalizedName}${normalizedCode}`;
 }
 
 function formatBytes(bytes) {
@@ -83,13 +89,15 @@ function statusTone(status) {
 }
 
 function App() {
-  const initialRoom = useMemo(() => normalizeRoomCode(new URLSearchParams(window.location.search).get('room') || ''), []);
-  const [mode, setMode] = useState(initialRoom ? 'join' : 'create');
+  const initialParams = useMemo(() => new URLSearchParams(window.location.search), []);
+  const initialRoom = useMemo(() => normalizeRoomCode(initialParams.get('room') || ''), [initialParams]);
+  const initialRoomName = useMemo(() => normalizeRoomName(initialParams.get('name') || ''), [initialParams]);
+  const [mode, setMode] = useState(initialRoom || initialRoomName ? 'join' : 'create');
   const [roomCode, setRoomCode] = useState(initialRoom);
   const [joinCode, setJoinCode] = useState(initialRoom);
   const [createCode, setCreateCode] = useState(randomRoomCode());
-  const [creatorName, setCreatorName] = useState('');
-  const [joinerName, setJoinerName] = useState('');
+  const [createRoomName, setCreateRoomName] = useState('');
+  const [joinRoomName, setJoinRoomName] = useState(initialRoomName);
   const [remoteName, setRemoteName] = useState('');
   const [status, setStatus] = useState('idle');
   const [error, setError] = useState('');
@@ -111,9 +119,13 @@ function App() {
 
   const connected = status === 'connected' || status === 'complete';
   const canSend = connected && !sendingRef.current && !sendProgress;
-  const inviteLink = roomCode ? `${window.location.origin}${window.location.pathname}?room=${roomCode}` : '';
-  const hasInviteCode = Boolean(initialRoom && mode === 'join');
-  const localName = mode === 'create' ? normalizeName(creatorName) : normalizeName(joinerName);
+  const activeRoomName = mode === 'create' ? normalizeRoomName(createRoomName) : normalizeRoomName(joinRoomName);
+  const inviteLink =
+    roomCode && activeRoomName
+      ? `${window.location.origin}${window.location.pathname}?name=${encodeURIComponent(activeRoomName)}&room=${roomCode}`
+      : '';
+  const hasInviteCode = Boolean((initialRoom || initialRoomName) && mode === 'join');
+  const localName = 'Connected device';
 
   useEffect(() => {
     receivedFilesRef.current = receivedFiles;
@@ -161,6 +173,7 @@ function App() {
       conn.send({
         type: 'hello',
         name: localName || 'Connected device',
+        roomName: activeRoomName,
         roomCode,
         timestamp: Date.now(),
       });
@@ -175,10 +188,10 @@ function App() {
   }
 
   function createRoom() {
-    const name = normalizeName(creatorName);
+    const name = normalizeRoomName(createRoomName);
     const code = normalizeRoomCode(createCode);
     if (!name) {
-      setError('Enter your name before creating a room.');
+      setError('Enter the room name before creating a room.');
       return;
     }
     if (code.length < 6) {
@@ -188,14 +201,16 @@ function App() {
     cleanupConnection();
     setRoomCode(code);
     setJoinCode(code);
+    setJoinRoomName(name);
+    setCreateRoomName(name);
     setCreateCode(code);
     setMode('create');
     setStatus('creating');
     setError('');
     setInfo('');
-    window.history.replaceState(null, '', `?room=${code}`);
+    window.history.replaceState(null, '', `?name=${encodeURIComponent(name)}&room=${code}`);
 
-    const peer = new Peer(peerIdForRoom(code), PEER_OPTIONS);
+    const peer = new Peer(peerIdForRoom(name, code), PEER_OPTIONS);
     peerRef.current = peer;
     peer.on('open', () => setStatus('waiting'));
     peer.on('connection', (conn) => attachConnection(conn));
@@ -204,10 +219,10 @@ function App() {
   }
 
   function joinRoom() {
-    const name = normalizeName(joinerName);
+    const name = normalizeRoomName(joinRoomName);
     const code = normalizeRoomCode(joinCode);
     if (!name) {
-      setError('Enter your name before joining a room.');
+      setError('Enter the exact room name before joining.');
       return;
     }
     if (!code) {
@@ -221,16 +236,18 @@ function App() {
     cleanupConnection();
     setRoomCode(code);
     setJoinCode(code);
+    setCreateRoomName(name);
+    setJoinRoomName(name);
     setMode('join');
     setStatus('joining');
     setError('');
     setInfo('');
-    window.history.replaceState(null, '', `?room=${code}`);
+    window.history.replaceState(null, '', `?name=${encodeURIComponent(name)}&room=${code}`);
 
     const peer = new Peer(undefined, PEER_OPTIONS);
     peerRef.current = peer;
     peer.on('open', () => {
-      const conn = peer.connect(peerIdForRoom(code), {
+      const conn = peer.connect(peerIdForRoom(name, code), {
         reliable: true,
         serialization: 'binary',
       });
@@ -471,7 +488,7 @@ function App() {
         </div>
         <div className="status-note">
           <ShieldAlert size={16} />
-          Anyone with the active room code or link and a name can connect while this room is live.
+          Room name and room code must both match. Anyone with both values can connect while this room is live.
         </div>
       </section>
 
@@ -496,14 +513,14 @@ function App() {
           {mode === 'create' ? (
             <div className="stack">
               <label className="field-label" htmlFor="creator-name">
-                Your name
+                Room name
               </label>
               <input
                 id="creator-name"
                 className="text-input name-input"
-                value={creatorName}
-                placeholder="Eddie"
-                onChange={(event) => setCreatorName(event.target.value)}
+                value={createRoomName}
+                placeholder="MYROOM"
+                onChange={(event) => setCreateRoomName(normalizeRoomName(event.target.value))}
               />
               <label className="field-label" htmlFor="create-code">
                 Room code
@@ -529,7 +546,7 @@ function App() {
                 inviteLink={inviteLink}
                 onCopy={copyInviteLink}
                 copied={copiedInvite}
-                hostName={creatorName}
+                roomName={createRoomName}
                 remoteName={remoteName}
               />
             </div>
@@ -538,19 +555,19 @@ function App() {
               {hasInviteCode && (
                 <div className="join-found-card">
                   <span>Room found from invite link</span>
-                  <strong>{joinCode}</strong>
-                  <p>Tap Join Room to connect to the device that created this room.</p>
+                  <strong>{joinRoomName || 'ROOM'}</strong>
+                  <p>Code: {joinCode || 'needed'}. Both room name and code must match before access is granted.</p>
                 </div>
               )}
               <label className="field-label" htmlFor="joiner-name">
-                Your name
+                Room name
               </label>
               <input
                 id="joiner-name"
                 className="text-input name-input"
-                value={joinerName}
-                placeholder="Device B"
-                onChange={(event) => setJoinerName(event.target.value)}
+                value={joinRoomName}
+                placeholder="MYROOM"
+                onChange={(event) => setJoinRoomName(normalizeRoomName(event.target.value))}
               />
               <label className="field-label" htmlFor="room-code">
                 Room code
@@ -569,7 +586,7 @@ function App() {
             </div>
           )}
 
-          <button className="secondary-action" onClick={reconnect} disabled={mode === 'create' ? !creatorName || !createCode : !joinerName || !joinCode}>
+          <button className="secondary-action" onClick={reconnect} disabled={mode === 'create' ? !createRoomName || !createCode : !joinRoomName || !joinCode}>
             <RefreshCw size={16} />
             Reconnect
           </button>
@@ -645,18 +662,20 @@ function App() {
   );
 }
 
-function RoomCodeCard({ roomCode, inviteLink, onCopy, copied, hostName, remoteName }) {
+function RoomCodeCard({ roomCode, inviteLink, onCopy, copied, roomName, remoteName }) {
   if (!roomCode) {
-    return <div className="room-card muted">Add your name and room code, then create the room.</div>;
+    return <div className="room-card muted">Add the room name and room code, then create the room.</div>;
   }
 
   return (
     <div className="room-card">
+      <span>Room name</span>
+      <strong>{normalizeRoomName(roomName)}</strong>
       <span>Room code</span>
       <strong>{roomCode}</strong>
       <p className="room-meta">
-        Host: {normalizeName(hostName) || 'You'}
-        {remoteName ? ` - Connected with ${remoteName}` : ' - Waiting for another device'}
+        Access requires both values to match.
+        {remoteName ? ` Connected with ${remoteName}.` : ' Waiting for another device.'}
       </p>
       <div className="invite-line">
         <Link size={15} />

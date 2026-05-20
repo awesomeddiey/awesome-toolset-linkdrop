@@ -6,8 +6,9 @@ There is no login, database, file storage, Firebase, Supabase, cloud bucket, or 
 
 ## Features
 
-- Create a room with creator name and short room code
-- Join by name plus room code or `?room=ROOM_CODE` invite link
+- Create a room with a room name and short room code
+- Join only when both room name and room code match the creator's values
+- Join by room name plus room code or `?name=ROOM_NAME&room=ROOM_CODE` invite link
 - Send plain text both ways
 - Copy received text
 - Send files both ways with chunked transfer
@@ -68,16 +69,16 @@ For a project page, set Vite `base` to your repository path if needed, run `npm 
 ## How to use between two devices
 
 1. Open the app on Device A.
-2. Enter the creator name and a room code. You can type your own code or use the generate button.
+2. Enter a room name and a room code. You can type your own code or use the generate button.
 3. Click **Create Room**.
-4. Share the room code or invite link with Device B.
+4. Share the room name plus room code, or share the invite link with both values in the URL.
 5. Open the app on Device B.
-6. Enter the joining user's name and the exact room code. If Device B opens the invite link, it will show a room-found card with the code filled in.
+6. Enter the exact same room name and room code. If Device B opens the invite link, it will show a room-found card with both values filled in.
 7. Tap **Join Room**.
 8. Once the status is **Connected**, either device can send text or choose a file.
 9. Received files appear as download links. Click **Download** to save them.
 
-Both devices must remain online and connected at the same time. The room code validates access by matching the joiner to the live peer room. Anyone with the active room code or invite link and a name can connect while the room is active.
+Both devices must remain online and connected at the same time. Access is validated by deriving the live peer room from both the room name and room code. If either value does not match, the joining device connects to a different non-existent room and is not let in. Anyone with the active room name and code, or the invite link, can connect while the room is active.
 
 ## How WebRTC works here
 
