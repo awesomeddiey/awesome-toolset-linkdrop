@@ -211,6 +211,7 @@ h1 {
 
 .primary-action,
 .secondary-action,
+.icon-action,
 .card-actions button,
 .card-actions a {
   display: inline-flex;
@@ -234,6 +235,13 @@ h1 {
 
 .secondary-action {
   width: 100%;
+  color: #111827;
+  background: #f0f0f3;
+}
+
+.icon-action {
+  width: 48px;
+  flex: 0 0 48px;
   color: #111827;
   background: #f0f0f3;
 }
@@ -294,6 +302,13 @@ h1 {
   letter-spacing: 0.08em;
 }
 
+.room-meta {
+  margin: -4px 0 0;
+  color: #5f6368;
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
 .invite-line {
   display: flex;
   gap: 8px;
@@ -323,6 +338,16 @@ h1 {
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+.name-input {
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.code-row {
+  display: flex;
+  gap: 8px;
 }
 
 .message-box {

@@ -60,6 +60,10 @@ function normalizeRoomCode(value) {
   return value.trim().replace(/^linkdrop-/i, '').replace(/[^a-z0-9]/gi, '').toUpperCase();
 }
 
+function normalizeName(value) {
+  return value.trim().replace(/\s+/g, ' ').slice(0, 40);
+}
+
 function peerIdForRoom(roomCode) {
   return `${ROOM_PREFIX}${normalizeRoomCode(roomCode).toLowerCase()}`;
 }
@@ -83,6 +87,10 @@ function App() {
   const [mode, setMode] = useState(initialRoom ? 'join' : 'create');
   const [roomCode, setRoomCode] = useState(initialRoom);
   const [joinCode, setJoinCode] = useState(initialRoom);
+  const [createCode, setCreateCode] = useState(randomRoomCode());
+  const [creatorName, setCreatorName] = useState('');
+  const [joinerName, setJoinerName] = useState('');
+  const [remoteName, setRemoteName] = useState('');
   const [status, setStatus] = useState('idle');
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
@@ -105,6 +113,7 @@ function App() {
   const canSend = connected && !sendingRef.current && !sendProgress;
   const inviteLink = roomCode ? `${window.location.origin}${window.location.pathname}?room=${roomCode}` : '';
   const hasInviteCode = Boolean(initialRoom && mode === 'join');
+  const localName = mode === 'create' ? normalizeName(creatorName) : normalizeName(joinerName);
 
   useEffect(() => {
     receivedFilesRef.current = receivedFiles;
@@ -132,6 +141,7 @@ function App() {
       peerRef.current = null;
     }
     receiveBuffersRef.current.clear();
+    setRemoteName('');
     sendingRef.current = false;
     setSendProgress(null);
     setReceiveProgress(null);
@@ -148,6 +158,12 @@ function App() {
       setStatus('connected');
       setError('');
       setInfo('Devices are connected. Transfers now move directly between browsers.');
+      conn.send({
+        type: 'hello',
+        name: localName || 'Connected device',
+        roomCode,
+        timestamp: Date.now(),
+      });
     });
     conn.on('data', handleIncomingData);
     conn.on('close', () => {
@@ -159,10 +175,20 @@ function App() {
   }
 
   function createRoom() {
+    const name = normalizeName(creatorName);
+    const code = normalizeRoomCode(createCode);
+    if (!name) {
+      setError('Enter your name before creating a room.');
+      return;
+    }
+    if (code.length < 6) {
+      setError('Enter a room code with at least 6 letters or numbers.');
+      return;
+    }
     cleanupConnection();
-    const code = randomRoomCode();
     setRoomCode(code);
     setJoinCode(code);
+    setCreateCode(code);
     setMode('create');
     setStatus('creating');
     setError('');
@@ -178,9 +204,18 @@ function App() {
   }
 
   function joinRoom() {
+    const name = normalizeName(joinerName);
     const code = normalizeRoomCode(joinCode);
+    if (!name) {
+      setError('Enter your name before joining a room.');
+      return;
+    }
     if (!code) {
       setError('Enter a room code first.');
+      return;
+    }
+    if (code.length < 6) {
+      setError('Enter the full room code from the creator.');
       return;
     }
     cleanupConnection();
@@ -240,6 +275,7 @@ function App() {
       sendJson({
         type: 'text',
         content: trimmed,
+        senderName: localName || 'Connected device',
         timestamp: Date.now(),
       })
     ) {
@@ -279,6 +315,7 @@ function App() {
         size: file.size,
         mime: file.type || 'application/octet-stream',
         totalChunks,
+        senderName: localName || 'Connected device',
         timestamp: Date.now(),
       });
 
@@ -319,9 +356,20 @@ function App() {
 
   function handleIncomingData(data) {
     if (!data?.type) return;
+    if (data.type === 'hello') {
+      setRemoteName(normalizeName(data.name) || 'Connected device');
+      setInfo(`${normalizeName(data.name) || 'A device'} joined this room.`);
+      return;
+    }
+
     if (data.type === 'text') {
       setReceivedTexts((items) => [
-        { id: crypto.randomUUID(), content: data.content, timestamp: data.timestamp || Date.now() },
+        {
+          id: crypto.randomUUID(),
+          content: data.content,
+          senderName: data.senderName || remoteName || 'Connected device',
+          timestamp: data.timestamp || Date.now(),
+        },
         ...items,
       ]);
       setInfo('Text received.');
@@ -368,6 +416,7 @@ function App() {
           name: transfer.meta.name,
           size: transfer.meta.size,
           mime: transfer.meta.mime,
+          senderName: transfer.meta.senderName || remoteName || 'Connected device',
           url,
           timestamp: Date.now(),
         },
@@ -422,7 +471,7 @@ function App() {
         </div>
         <div className="status-note">
           <ShieldAlert size={16} />
-          Anyone with the active room code or link can connect. Keep both devices online.
+          Anyone with the active room code or link and a name can connect while this room is live.
         </div>
       </section>
 
@@ -446,11 +495,43 @@ function App() {
 
           {mode === 'create' ? (
             <div className="stack">
+              <label className="field-label" htmlFor="creator-name">
+                Your name
+              </label>
+              <input
+                id="creator-name"
+                className="text-input name-input"
+                value={creatorName}
+                placeholder="Eddie"
+                onChange={(event) => setCreatorName(event.target.value)}
+              />
+              <label className="field-label" htmlFor="create-code">
+                Room code
+              </label>
+              <div className="code-row">
+                <input
+                  id="create-code"
+                  className="text-input"
+                  value={createCode}
+                  placeholder="ABC1234"
+                  onChange={(event) => setCreateCode(normalizeRoomCode(event.target.value))}
+                />
+                <button className="icon-action" type="button" onClick={() => setCreateCode(randomRoomCode())}>
+                  <RefreshCw size={16} />
+                </button>
+              </div>
               <button className="primary-action" onClick={createRoom}>
                 <PlugZap size={18} />
                 Create Room
               </button>
-              <RoomCodeCard roomCode={roomCode} inviteLink={inviteLink} onCopy={copyInviteLink} copied={copiedInvite} />
+              <RoomCodeCard
+                roomCode={roomCode}
+                inviteLink={inviteLink}
+                onCopy={copyInviteLink}
+                copied={copiedInvite}
+                hostName={creatorName}
+                remoteName={remoteName}
+              />
             </div>
           ) : (
             <div className="stack">
@@ -461,6 +542,16 @@ function App() {
                   <p>Tap Join Room to connect to the device that created this room.</p>
                 </div>
               )}
+              <label className="field-label" htmlFor="joiner-name">
+                Your name
+              </label>
+              <input
+                id="joiner-name"
+                className="text-input name-input"
+                value={joinerName}
+                placeholder="Device B"
+                onChange={(event) => setJoinerName(event.target.value)}
+              />
               <label className="field-label" htmlFor="room-code">
                 Room code
               </label>
@@ -478,7 +569,7 @@ function App() {
             </div>
           )}
 
-          <button className="secondary-action" onClick={reconnect} disabled={!roomCode && !joinCode}>
+          <button className="secondary-action" onClick={reconnect} disabled={mode === 'create' ? !creatorName || !createCode : !joinerName || !joinCode}>
             <RefreshCw size={16} />
             Reconnect
           </button>
@@ -554,15 +645,19 @@ function App() {
   );
 }
 
-function RoomCodeCard({ roomCode, inviteLink, onCopy, copied }) {
+function RoomCodeCard({ roomCode, inviteLink, onCopy, copied, hostName, remoteName }) {
   if (!roomCode) {
-    return <div className="room-card muted">Create a room to generate a shareable invite link.</div>;
+    return <div className="room-card muted">Add your name and room code, then create the room.</div>;
   }
 
   return (
     <div className="room-card">
       <span>Room code</span>
       <strong>{roomCode}</strong>
+      <p className="room-meta">
+        Host: {normalizeName(hostName) || 'You'}
+        {remoteName ? ` - Connected with ${remoteName}` : ' - Waiting for another device'}
+      </p>
       <div className="invite-line">
         <Link size={15} />
         <p>{inviteLink}</p>
@@ -605,7 +700,9 @@ function TextCard({ item, onCopy }) {
     <article className="received-card">
       <p>{item.content}</p>
       <div className="card-actions">
-        <time>{new Date(item.timestamp).toLocaleTimeString()}</time>
+        <time>
+          {item.senderName || 'Connected device'} - {new Date(item.timestamp).toLocaleTimeString()}
+        </time>
         <button onClick={handleCopy}>
           <Clipboard size={15} />
           {copied ? 'Copied' : 'Copy'}
@@ -621,7 +718,7 @@ function FileCard({ file, onRemove }) {
       <div>
         <strong>{file.name}</strong>
         <span>
-          {formatBytes(file.size)} - {file.mime || 'file'}
+          {formatBytes(file.size)} - {file.mime || 'file'} - from {file.senderName || 'Connected device'}
         </span>
       </div>
       <div className="card-actions">
